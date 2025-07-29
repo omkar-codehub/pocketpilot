@@ -21,10 +21,6 @@ const UserSchema = new mongoose.Schema({
     minlength: 6,
     select: false
   },
-  monthlyIncome: {
-    type: Number,
-    default: 0
-  },
   createdAt: {
     type: Date,
     default: Date.now

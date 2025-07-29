@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 const connectDB = require('./config/db');
+const incomeRoutes = require('./routes/incomeRoute');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -15,7 +16,10 @@ connectDB();
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
-
+app.use('/api/income', incomeRoutes);
+app.use('/api/budget', require('./routes/budget'));
+app.use('/api/transactions', require('./routes/transactions'));
+app.use('/api/savings', require('./routes/savings'));
 
 // Default route
 app.get('/', (req, res) => {

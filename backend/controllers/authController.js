@@ -56,6 +56,7 @@ exports.register = async (req, res) => {
 // @access  Public
 exports.login = async (req, res) => {
   try {
+    console.log('Login request body:', req.body); // Debugging line
     const { email, password } = req.body;
 
     // Check for user email
@@ -78,7 +79,6 @@ exports.login = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
-        monthlyIncome: user.monthlyIncome,
         token: generateToken(user._id)
       }
     });
@@ -111,6 +111,17 @@ exports.getProfile = async (req, res) => {
     });
   } catch (error) {
     console.error('Get profile error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+// verify user token and it returns user data
+exports.verifyToken = async (req, res) => {
+  try {
+    const user = req.user;
+    res.status(200).json({ success: true, user });
+  } catch (error) {
+    console.error('Verify token error:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };

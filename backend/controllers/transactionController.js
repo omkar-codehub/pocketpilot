@@ -80,7 +80,7 @@ exports.addTransaction = async (req, res) => {
 exports.updateTransaction = async (req, res) => {
   try {
     let transaction = await Transaction.findById(req.params.id);
-
+    console.log('Transaction found:', transaction);
     if (!transaction) {
       return res.status(404).json({
         success: false,
@@ -95,7 +95,7 @@ exports.updateTransaction = async (req, res) => {
         message: 'User not authorized'
       });
     }
-
+    console.log('Updating transaction:', req.body);
     transaction = await Transaction.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true

@@ -4,7 +4,8 @@ const User = require('../models/User');
 // Protect routes
 exports.protect = async (req, res, next) => {
   let token;
-
+  console.log(`Route called: ${req.method} ${req.originalUrl}`);
+  
   // Check if auth header exists and has the correct format
   if (
     req.headers.authorization &&
@@ -13,13 +14,13 @@ exports.protect = async (req, res, next) => {
     try {
       // Get token from header
       token = req.headers.authorization.split(' ')[1];
-
+      // console.log('Token received:', token); // Debugging line
       // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
       // Get user from the token
       req.user = await User.findById(decoded.id).select('-password');
-
+      // console.log('User found:', req.user); // Debugging line
       if (!req.user) {
         return res.status(401).json({
           success: false,

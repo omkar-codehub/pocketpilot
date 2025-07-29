@@ -6,8 +6,8 @@ const { protect } = require('../middleware/authMiddleware');
 // All routes below require authentication
 router.post('/', protect, incomeController.createIncome);
 router.get('/', protect, incomeController.getAllIncome);
+router.get('/total', protect, incomeController.getTotalIncome);
 router.get('/:id', protect, incomeController.getIncomeById);
 router.put('/:id', protect, incomeController.updateIncome);
 router.delete('/:id', protect, incomeController.deleteIncome);
-
 module.exports = router;

@@ -1,5 +1,5 @@
 const Income = require('../models/Income');
-
+const mongoose = require('mongoose');
 // Add new income
 exports.createIncome = async (req, res) => {
   try {
@@ -32,6 +32,33 @@ exports.getAllIncome = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+
+exports.getTotalIncome = async (req, res) => {
+  try {
+    console.log('Calculating total income for user:');
+    const totalIncome = await Income.aggregate([
+      {
+        $match: {
+          user: new mongoose.Types.ObjectId(req.user._id)
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    const total = totalIncome.length > 0 ? totalIncome[0].total : 0;
+
+    res.status(200).json({ success: true, total });
+  } catch (err) {
+    console.error('Error getting total income:', err);
+    res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  }
+};
+
 
 // Get income by ID
 exports.getIncomeById = async (req, res) => {

@@ -8,18 +8,26 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*', // frontend origin
+  credentials: true
+}));
 app.use(express.json());
 
 // Connect to database
 connectDB();
 
 // Routes
+app.get('/api', (req, res) => {
+  res.json({ message: 'Welcome to the PocketPilot API' });
+});
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/income', incomeRoutes);
-app.use('/api/budget', require('./routes/budget'));
+app.use('/api/budgets', require('./routes/budget'));
 app.use('/api/transactions', require('./routes/transactions'));
 app.use('/api/savings', require('./routes/savings'));
+app.use('/api/ai', require('./routes/ai'));
+app.use('/api/regret-feedback', require('./routes/regretFeedback'));
 
 // Default route
 app.get('/', (req, res) => {

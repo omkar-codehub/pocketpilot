@@ -1,3 +1,4 @@
+// Transaction.js
 const mongoose = require('mongoose');
 
 const TransactionSchema = new mongoose.Schema({
@@ -19,14 +20,22 @@ const TransactionSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please add a category'],
     enum: [
-      'salary', 'investment', 'freelance', 'gift', 'other-income',
-      'housing', 'food', 'transportation', 'utilities', 'entertainment', 
-      'healthcare', 'education', 'shopping', 'debt', 'savings', 'other-expense'
+      'Salary', 'Investment', 'Freelance', 'Gift', 'other-income',
+      'housing', 'Food', 'Transportation', 'utilities', 'Entertainment', 
+      'Healthcare', 'Education', 'Shopping', 'Bills', 'savings', 'other-expense'
     ]
   },
   description: {
     type: String,
     required: [true, 'Please add a description']
+  },
+  regretFeedback: {
+  type: Boolean,
+  default: false
+  },
+  regretNotes: {
+    type: String,
+    default: ''
   },
   date: {
     type: Date,

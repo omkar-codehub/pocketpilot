@@ -9,7 +9,8 @@ const {
   analyzeAffordability,
   predictRegret,
   analyzeOverspending,
-  optimizeSavings
+  optimizeSavings,
+  chatWithAI
 } = require('../controllers/aiController');
 
 // Import middleware (to be implemented)
@@ -31,12 +32,12 @@ router.get('/insights', getFinancialInsights);
 router.post('/affordability', analyzeAffordability);
 
 // Predict purchase regret
-router.post('/regret-radar', predictRegret);
+// router.post('/regret-radar', predictRegret);
 
 // Analyze overspending patterns
 router.post('/overspending', analyzeOverspending);
 
 // Optimize savings with round-up strategies
-router.post('/savings-optimizer', optimizeSavings);
-
+// router.post('/savings-optimizer', optimizeSavings);
+router.post('/chat', chatWithAI);
 module.exports = router;

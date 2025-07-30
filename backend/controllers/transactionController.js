@@ -1,29 +1,50 @@
 const Transaction = require('../models/Transaction');
+const User = require('../models/User');
+const geminiService = require('../services/geminiService');
+const RoundUp = require('../models/RoundUp');
+
+exports.getTransactionsWithoutPagination = async (req, res) => {
+  try {
+    // Filter by type if provided
+    const transaction = await Transaction.find({
+      user: req.user.id})
+      .sort({ date: -1 });
+    res.status(200).json({
+      success: true,
+      count: transaction.length,
+      data: transaction
+    });
+  } catch (error) {
+    console.error('Get transactions error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error
+: error.message });
+  }
+};
 
 // @desc    Get all transactions for a user
 // @route   GET /api/transactions
 // @access  Private
 exports.getTransactions = async (req, res) => {
   try {
-    // Pagination
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 10;
-    const startIndex = (page - 1) * limit;
+    // // Pagination
+    // const page = parseInt(req.query.page, 10) || 1;
+    // const limit = parseInt(req.query.limit, 10) || 10;
+    // const startIndex = (page - 1) * limit;
     
     // Filter by type if provided
-    const typeFilter = req.query.type ? { type: req.query.type } : {};
+    // const typeFilter = req.query.type ? { type: req.query.type } : {};
     
     // Build query
     const query = {
-      user: req.user.id,
-      ...typeFilter
+      user: req.user.id
+      // ...typeFilter
     };
 
     // Execute query with pagination
     const transactions = await Transaction.find(query)
       .sort({ date: -1 })
-      .skip(startIndex)
-      .limit(limit);
+      // .skip(startIndex)
+      // .limit(limit);
 
     // Get total count for pagination
     const total = await Transaction.countDocuments(query);
@@ -31,12 +52,12 @@ exports.getTransactions = async (req, res) => {
     res.status(200).json({
       success: true,
       count: transactions.length,
-      total,
-      pagination: {
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
-      },
+      // total,
+      // pagination: {
+      //   page,
+      //   limit,
+      //   totalPages: Math.ceil(total / limit)
+      // },
       data: transactions
     });
   } catch (error) {
@@ -52,9 +73,24 @@ exports.addTransaction = async (req, res) => {
   try {
     // Add user to request body
     req.body.user = req.user.id;
-    
+    const user = await User.findById(req.user.id);
+    let amount = req.body.amount;
+    console.log('Adding transaction:',user );
+    console.log(req.body);
+    let ramount = amount;
+    if (user.roundUpEnabled && req.body.type === 'expense') {
+      ramount = await geminiService.optimizeSavings(amount);
+    }  
+    req.body.amount = ramount;
     const transaction = await Transaction.create(req.body);
-
+    if (user.roundUpEnabled && req.body.type === 'expense') {
+      const roundUp = new RoundUp({
+        user: req.user.id,
+        transaction: transaction._id,
+        addedAmount: ramount - amount
+      });
+      await roundUp.save();
+    }
     res.status(201).json({
       success: true,
       data: transaction

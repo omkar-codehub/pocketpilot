@@ -20,7 +20,7 @@ router.use(protect);
 router.route('/')
   .get(getTransactions)
   .post(addTransaction);
-
+router.get('/w')
 router.route('/:id')
   .put(updateTransaction)
   .delete(deleteTransaction);

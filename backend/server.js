@@ -28,7 +28,8 @@ app.use('/api/transactions', require('./routes/transactions'));
 app.use('/api/savings', require('./routes/savings'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/regret-feedback', require('./routes/regretFeedback'));
-
+app.use('/api/user', require('./routes/user'));
+app.use('/api/round-ups', require('./routes/roundUp'));
 // Default route
 app.get('/', (req, res) => {
   res.send('PocketPilot API is running');

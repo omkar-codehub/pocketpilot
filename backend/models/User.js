@@ -22,6 +22,10 @@ const UserSchema = new mongoose.Schema({
     minlength: 6,
     select: false
   },
+  roundUpEnabled: {
+    type: Boolean,
+    default: true
+  },
   createdAt: {
     type: Date,
     default: Date.now

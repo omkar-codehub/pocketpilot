@@ -31,7 +31,7 @@ User message: "${command}"
   const jsonStart = text.indexOf('{');
   const jsonEnd = text.lastIndexOf('}') + 1;
   const jsonString = text.slice(jsonStart, jsonEnd);
- console.log('AI response:', jsonString);
+//  console.log('AI response:', jsonString);
   try {
     return JSON.parse(jsonString);
   } catch (err) {
@@ -41,6 +41,8 @@ User message: "${command}"
 
 exports.addRegretFeedback = async (req, res) => {
   try {
+    // console.log('Received regret feedback command:', req.body);
+    
     const { command } = req.body;
     if (!command) {
       return res.status(400).json({ success: false, message: "Please provide regret feedback command" });
@@ -70,6 +72,56 @@ exports.addRegretFeedback = async (req, res) => {
     res.status(200).json({ success: true, message: 'Regret feedback saved', data: transaction });
   } catch (error) {
     console.error('Regret feedback error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+exports.getRegretFeedback = async (req, res) => {
+  try {
+    const transactions = await Transaction.find({
+      user: req.user.id,
+      regretFeedback: false,
+      type: 'expense'
+
+    }).sort({ date: -1 });
+    
+    res.status(200).json({
+      success: true,
+      count: transactions.length,
+      data: transactions
+    });
+  } catch (error) {
+    console.error('Get regret feedback error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+exports.addRegretFeedbackToTransaction = async (req, res) => {
+  try {
+    const { transactionId, notes } = req.body;
+    console.log('Adding regret feedback to transaction:', transactionId, notes);
+    
+    if (!transactionId || !notes) {
+      return res.status(400).json({ success: false, message: 'Transaction ID and notes are required' });
+    }
+
+    const transaction = await Transaction.findById(transactionId);
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    // Ensure the user owns the transaction
+    if (transaction.user.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'User not authorized' });
+    }
+
+    transaction.regretFeedback = true;
+    transaction.regretNotes = notes;
+    await transaction.save();
+
+    res.status(200).json({ success: true, data: transaction });
+  } catch (error) {
+    console.error('Add regret feedback to transaction error:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };

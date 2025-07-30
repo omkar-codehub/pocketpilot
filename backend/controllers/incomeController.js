@@ -35,7 +35,7 @@ exports.getAllIncome = async (req, res) => {
 
 exports.getTotalIncome = async (req, res) => {
   try {
-    console.log('Calculating total income for user:');
+    // console.log('Calculating total income for user:');
     const totalIncome = await Income.aggregate([
       {
         $match: {

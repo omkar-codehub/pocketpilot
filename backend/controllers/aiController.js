@@ -3,6 +3,8 @@ const Budget = require('../models/Budget');
 const Savings = require('../models/Savings');
 const geminiService = require('../services/geminiService');
 const { GoogleGenAI } = require('@google/genai');
+const User = require('../models/User');
+const RoundUp = require('../models/RoundUp');
 // @desc    Process voice commands
 // @route   POST /api/ai/voice-command
 // @access  Private
@@ -48,10 +50,10 @@ exports.processVoiceCommand = async (req, res) => {
 
     // Extract product keyword from command
     const productKeyword = await extractProductKeyword(command);
-
+    // console.log('Extracted product keyword:', productKeyword);
     // Check for regret feedback in previous transactions
     const regretTransaction = await checkPreviousRegret(req.user.id, category, productKeyword);
-
+    // console.log('Previous regret transaction:', regretTransaction);
     if (regretTransaction && confirmRegret === undefined) {
       // Warn user about regret
       return res.status(200).json({
@@ -67,11 +69,17 @@ exports.processVoiceCommand = async (req, res) => {
         message: 'Transaction cancelled based on your regret feedback.'
       });
     }
-
+    // console.log(req.user.roundUpEnabled);
+    
+    const user = req.user
+    let ramount = amount;
+     if (user.roundUpEnabled) {
+      ramount = await geminiService.optimizeSavings(amount);
+     }
     // Save transaction normally
     const transaction = new Transaction({
       user: req.user.id,
-      amount: Math.abs(amount),
+      amount: Math.abs(ramount),
       type: type || 'expense',
       category,
       description: command,
@@ -82,7 +90,15 @@ exports.processVoiceCommand = async (req, res) => {
     });
 
     await transaction.save();
-
+    if (user.roundUpEnabled) {
+      const roundUp = new RoundUp({
+        user: req.user.id,
+        transaction: transaction._id,
+        addedAmount: ramount- amount
+      });
+      await roundUp.save();
+      // console.log('Optimized amount with round-up:', ramount);   
+    }  
     res.status(201).json({ success: true, data: transaction });
   } catch (error) {
     console.error('Process voice command error:', error);
@@ -113,13 +129,13 @@ Valid categories:
 - Housing
 - Food
 - Transportation
-- utilities
+- Utilities
 - Entertainment
 - Healthcare
 - Education
 - Shopping
 - Bills
-- savings
+- Savings
 - other-expense
 
 Valid payement methods:
@@ -147,19 +163,19 @@ User message: "${message}"
 
   const response = await genAI.models.generateContent({model: "gemini-2.0-flash", contents: prompt});
   const text = response.text;
-  console.log('AI response:', text);
+  // console.log('AI response:', text);
   try {
     const jsonStart = text.indexOf('{');
     const jsonEnd = text.lastIndexOf('}') + 1;
     const jsonString = text.slice(jsonStart, jsonEnd);
-    console.log('Parsed JSON:', jsonString);
+    // console.log('Parsed JSON:', jsonString);
     const data = JSON.parse(jsonString);
 
     // Optional: Validate category on server side too
     const validCategories = [
       'Salary', 'Investment', 'Freelance', 'Gift', 'other-income',
-      'housing', 'Food', 'Transportation', 'utilities', 'Entertainment',
-      'Healthcare', 'Education', 'Shopping', 'debt', 'Savings', 'other-expense'
+      'Housing', 'Food', 'Transportation', 'Utilities', 'Entertainment',
+      'Healthcare', 'Education', 'Shopping', 'Bills', 'Savings', 'other-expense'
     ];
 
     if (!validCategories.includes(data.category)) {
@@ -306,22 +322,6 @@ exports.getFinancialInsights = async (req, res) => {
       }
     }
     
-    // Get all budgets for current month
-    const budgets = await Budget.find({
-      user: req.user.id,
-      month: currentMonth,
-      year: currentYear
-    });
-    
-    // Budget warnings
-    for (const budget of budgets) {
-      const spent = currentSpendingByCategory[budget.category] || 0;
-      const percentage = (spent / budget.amount) * 100;
-      
-      if (percentage >= 90) {
-        insights.push(`You've used ${percentage.toFixed(1)}% of your ${budget.category} budget.`);
-      }
-    }
     
     res.status(200).json({
       success: true,
@@ -337,11 +337,11 @@ exports.getFinancialInsights = async (req, res) => {
             income: prevIncome,
             expenses: prevExpenses,
             savings: prevIncome - prevExpenses,
-            savingsRate: prevIncome > 0 ? ((prevIncome - prevExpenses) / prevIncome) * 100 : 0
+            savingsRate: prevIncome > 0 ? ((prevIncome - prevExpenses) / prevIncome) * 100 : 1
           },
           trends: {
-            incomeChange: prevIncome > 0 ? ((currentIncome - prevIncome) / prevIncome) * 100 : 0,
-            expenseChange: prevExpenses > 0 ? ((currentExpenses - prevExpenses) / prevExpenses) * 100 : 0
+            incomeChange: prevIncome > 0 ? ((currentIncome - prevIncome) / prevIncome) * 100 : 1,
+            expenseChange: prevExpenses > 0 ? ((currentExpenses - prevExpenses) / prevExpenses) * 100 : 1
           }
         },
         topCategories,
@@ -401,23 +401,11 @@ exports.analyzeAffordability = async (req, res) => {
         }
         spendingByCategory[t.category] += t.amount;
       });
-    
-    // Get budget for the category
-    const budget = await Budget.findOne({
-      user: req.user.id,
-      category,
-      month: currentMonth,
-      year: currentYear
-    });
+  
 
     // Get savings goals
     const savingsGoals = await Savings.find({ user: req.user.id });
     
-    // Get upcoming expenses (simplified - in a real app, this would be more sophisticated)
-    const upcomingExpenses = [
-      { name: 'Rent', amount: 150, dueDate: '2023-05-01' },
-      { name: 'Electricity', amount: 100, dueDate: '2023-05-15' }
-    ];
     
     // Prepare data for Gemini API
     const affordabilityRequest = {
@@ -427,18 +415,16 @@ exports.analyzeAffordability = async (req, res) => {
       userBudget: {
         monthlyIncome: totalIncome,
         totalExpenses,
-        categoryLimits: budget ? { [category]: budget.amount } : {},
         currentSpending: spendingByCategory
       },
       savingsGoals: savingsGoals.map(goal => ({
-        name: goal.title,
+        name: goal.name,
         target: goal.targetAmount,
         current: goal.currentAmount,
         deadline: goal.targetDate
-      })),
-      upcomingExpenses
+      }))
     };
-    
+    // console.log('Affordability request:', affordabilityRequest);
     // Call Gemini API for affordability analysis
     const analysis = await geminiService.analyzeAffordability(affordabilityRequest);
     
@@ -452,67 +438,67 @@ exports.analyzeAffordability = async (req, res) => {
   }
 };
 
-// @desc    Predict purchase regret using Gemini AI
-// @route   POST /api/ai/regret-radar
-// @access  Private
-exports.predictRegret = async (req, res) => {
-  try {
-    const { itemName, itemPrice, category, currentMood } = req.body;
+// // @desc    Predict purchase regret using Gemini AI
+// // @route   POST /api/ai/regret-radar
+// // @access  Private
+// exports.predictRegret = async (req, res) => {
+//   try {
+//     const { itemName, itemPrice, category, currentMood } = req.body;
     
-    if (!itemName || !itemPrice || !category) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide itemName, itemPrice, and category'
-      });
-    }
+//     if (!itemName || !itemPrice || !category) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Please provide itemName, itemPrice, and category'
+//       });
+//     }
 
-    // Get past purchases with regret data (simplified - in a real app, this would come from a database)
-    const pastPurchases = [
-      { item: 'Designer Shoes', amount: 12000, regretScore: 8, reasonForRegret: 'Barely wore them, too uncomfortable' },
-      { item: 'Smartphone', amount: 45000, regretScore: 2, reasonForRegret: 'Great value, use it every day' },
-      { item: 'Gym Membership', amount: 15000, regretScore: 9, reasonForRegret: 'Only went twice, waste of money' },
-      { item: 'Headphones', amount: 8000, regretScore: 1, reasonForRegret: 'Use them daily, excellent purchase' }
-    ];
+//     // Get past purchases with regret data (simplified - in a real app, this would come from a database)
+//     const pastPurchases = [
+//       { item: 'Designer Shoes', amount: 12000, regretScore: 8, reasonForRegret: 'Barely wore them, too uncomfortable' },
+//       { item: 'Smartphone', amount: 45000, regretScore: 2, reasonForRegret: 'Great value, use it every day' },
+//       { item: 'Gym Membership', amount: 15000, regretScore: 9, reasonForRegret: 'Only went twice, waste of money' },
+//       { item: 'Headphones', amount: 8000, regretScore: 1, reasonForRegret: 'Use them daily, excellent purchase' }
+//     ];
     
-    // Recent behavior data (simplified)
-    const recentBehavior = {
-      budgetOverruns: 2,
-      impulsePurchases: 3,
-      purchaseFrequency: 'increasing'
-    };
+//     // Recent behavior data (simplified)
+//     const recentBehavior = {
+//       budgetOverruns: 2,
+//       impulsePurchases: 3,
+//       purchaseFrequency: 'increasing'
+//     };
     
-    // Spending patterns (simplified)
-    const spendingPatterns = {
-      impulsiveBuying: {
-        timeOfDay: ['evening', 'late night'],
-        triggers: ['stress', 'social media', 'sales'],
-        averageAmount: 5000
-      }
-    };
+//     // Spending patterns (simplified)
+//     const spendingPatterns = {
+//       impulsiveBuying: {
+//         timeOfDay: ['evening', 'late night'],
+//         triggers: ['stress', 'social media', 'sales'],
+//         averageAmount: 5000
+//       }
+//     };
     
-    // Prepare data for Gemini API
-    const regretRequest = {
-      itemName,
-      itemPrice,
-      category,
-      pastPurchases,
-      currentMood: currentMood || 'neutral',
-      recentBehavior,
-      spendingPatterns
-    };
+//     // Prepare data for Gemini API
+//     const regretRequest = {
+//       itemName,
+//       itemPrice,
+//       category,
+//       pastPurchases,
+//       currentMood: currentMood || 'neutral',
+//       recentBehavior,
+//       spendingPatterns
+//     };
     
-    // Call Gemini API for regret prediction
-    const prediction = await geminiService.predictRegret(regretRequest);
+//     // Call Gemini API for regret prediction
+//     const prediction = await geminiService.predictRegret(regretRequest);
     
-    res.status(200).json({
-      success: true,
-      data: prediction
-    });
-  } catch (error) {
-    console.error('Regret prediction error:', error);
-    res.status(500).json({ success: false, message: 'Server error', error: error.message });
-  }
-};
+//     res.status(200).json({
+//       success: true,
+//       data: prediction
+//     });
+//   } catch (error) {
+//     console.error('Regret prediction error:', error);
+//     res.status(500).json({ success: false, message: 'Server error', error: error.message });
+//   }
+// };
 
 // @desc    Analyze overspending patterns using Gemini AI
 // @route   POST /api/ai/overspending
@@ -524,12 +510,6 @@ exports.analyzeOverspending = async (req, res) => {
     const currentMonth = today.getMonth() + 1;
     const currentYear = today.getFullYear();
     
-    // Get all budgets for current month
-    const budgets = await Budget.find({
-      user: req.user.id,
-      month: currentMonth,
-      year: currentYear
-    });
     
     // Get all transactions for current month
     const transactions = await Transaction.find({
@@ -555,17 +535,7 @@ exports.analyzeOverspending = async (req, res) => {
     const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
     const daysLeft = daysInMonth - today.getDate();
     
-    // Prepare monthly budgets data
-    const monthlyBudgets = {};
-    budgets.forEach(budget => {
-      const spent = spendingByCategory[budget.category] || 0;
-      monthlyBudgets[budget.category] = {
-        budget: budget.amount,
-        spent,
-        remaining: budget.amount - spent,
-        daysLeft
-      };
-    });
+  
     
     // Calculate spending velocity (simplified)
     const daysPassed = daysInMonth - daysLeft;
@@ -611,56 +581,15 @@ exports.analyzeOverspending = async (req, res) => {
 // @desc    Optimize savings with round-up strategies using Gemini AI
 // @route   POST /api/ai/savings-optimizer
 // @access  Private
-exports.optimizeSavings = async (req, res) => {
+optimizeSavings = async (amount) => {
   try {
     // Get current round-up data (simplified)
-    const currentRoundUps = {
-      dailyAverage: 15,
-      monthlyTotal: 450,
-      yearProjection: 5400
-    };
     
-    // Get spending patterns (simplified)
-    const spendingPatterns = {
-      smallPurchases: 45,  // per month
-      mediumPurchases: 20, // per month
-      largePurchases: 5    // per month
-    };
-    
-    // Get savings goals
-    const savingsGoals = await Savings.find({ user: req.user.id });
-    
-    // Format savings goals for Gemini API
-    const formattedGoals = {};
-    savingsGoals.forEach(goal => {
-      formattedGoals[goal.title] = {
-        target: goal.targetAmount,
-        current: goal.currentAmount,
-        deadline: goal.targetDate
-      };
-    });
-    
-    // Round-up settings (simplified)
-    const roundUpSettings = {
-      current: 'next₹5',
-      options: ['next₹1', 'next₹5', 'next₹10', 'next₹50', 'next₹100']
-    };
-    
-    // Prepare data for Gemini API
-    const savingsData = {
-      currentRoundUps,
-      spendingPatterns,
-      savingsGoals: formattedGoals,
-      roundUpSettings
-    };
     
     // Call Gemini API for savings optimization
-    const optimization = await geminiService.optimizeSavings(savingsData);
+    const optimization = await geminiService.optimizeSavings(amount);
     
-    res.status(200).json({
-      success: true,
-      data: optimization
-    });
+    return optimization;
   } catch (error) {
     console.error('Savings optimization error:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -810,3 +739,27 @@ exports.optimizeSavings = async (req, res) => {
 //     res.status(500).json({ success: false, message: 'Server error', error: error.message });
 //   }
 // };
+
+exports.chatWithAI = async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message) {
+      return res.status(400).json({ success: false, message: 'Please provide a message to chat with AI' });
+    }
+
+    // Use Gemini AI to process the chat message
+    const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY);
+    const response = await genAI.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `You are a financial assistant. Respond to the user query: "${message}"`
+    });
+
+    res.status(200).json({
+      success: true,
+      data: response.text.trim()
+    });
+  } catch (error) {
+    console.error('Chat with AI error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+}

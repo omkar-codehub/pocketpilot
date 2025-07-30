@@ -1,4 +1,5 @@
 const Savings = require('../models/Savings');
+const Transaction = require('../models/Transaction');
 
 // @desc    Get all savings goals for a user
 // @route   GET /api/savings
@@ -67,7 +68,7 @@ exports.createSavingsGoal = async (req, res) => {
   try {
     // Add user to request body
     req.body.user = req.user.id;
-    
+    console.log(req.body);
     const savingsGoal = await Savings.create(req.body);
 
     res.status(201).json({
@@ -232,6 +233,16 @@ exports.updateProgress = async (req, res) => {
         runValidators: true
       }
     );
+    // add amount to transactions
+    const transaction = new Transaction({
+      user: req.user.id,
+      type: 'expense',
+      category: 'Savings',
+      amount: parseFloat(amount),
+      description: `Savings progress update for goal: ${savingsGoal.name}`,
+      date: new Date()
+    });
+    await transaction.save();
 
     res.status(200).json({
       success: true,

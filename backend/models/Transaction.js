@@ -21,8 +21,8 @@ const TransactionSchema = new mongoose.Schema({
     required: [true, 'Please add a category'],
     enum: [
       'Salary', 'Investment', 'Freelance', 'Gift', 'other-income',
-      'housing', 'Food', 'Transportation', 'utilities', 'Entertainment', 
-      'Healthcare', 'Education', 'Shopping', 'Bills', 'savings', 'other-expense'
+      'Housing', 'Food', 'Transportation', 'Utilities', 'Entertainment', 
+      'Healthcare', 'Education', 'Shopping', 'Bills', 'Savings', 'other-expense'
     ]
   },
   description: {

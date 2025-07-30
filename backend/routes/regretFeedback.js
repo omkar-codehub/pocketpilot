@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { addRegretFeedback } = require('../controllers/regretFeedback');
+const { addRegretFeedback , addRegretFeedbackToTransaction, getRegretFeedback} = require('../controllers/regretFeedback');
 const { protect } = require('../middleware/authMiddleware'); // middleware to authenticate user
 
-// POST /api/regret-feedback
+
+router.get('/', protect, getRegretFeedback);
 router.post('/', protect, addRegretFeedback);
+router.post('/transaction', protect, addRegretFeedbackToTransaction);
 
 module.exports = router;

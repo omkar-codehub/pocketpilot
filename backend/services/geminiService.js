@@ -43,10 +43,9 @@ class GeminiAIService {
       itemPrice, 
       category, 
       userBudget, 
-      savingsGoals, 
-      upcomingExpenses 
+      savingsGoals
     } = affordabilityRequest;
-
+    console.log(userBudget)
     const prompt = `
     You are a witty but caring financial advisor. Analyze this purchase request and provide a clear YES/NO answer with a memorable, slightly humorous tip.
 
@@ -55,9 +54,8 @@ class GeminiAIService {
     - Current Expenses: ₹${userBudget.totalExpenses}
     - Available Budget: ₹${userBudget.monthlyIncome - userBudget.totalExpenses}
     - Item: ${itemName} (₹${itemPrice})
-    - Category Budget: ₹${userBudget.categoryLimits[category] || 0} (Spent: ₹${userBudget.currentSpending[category] || 0})
+    - Category Budget Spent: ₹${userBudget.currentSpending[category] || 0})
     - Savings Goals: ${JSON.stringify(savingsGoals)}
-    - Upcoming Bills: ${JSON.stringify(upcomingExpenses)}
 
     Rules:
     1. Start with clear "YES, you can afford this!" or "NO, this will hurt your wallet!"
@@ -65,15 +63,18 @@ class GeminiAIService {
     3. Use relatable analogies or witty phrases like "Buy Now, Cry Later"
     4. Keep response under 100 words
     5. Be encouraging, not judgmental
-
+    6. Include alternatives if they can't afford it, like "Wait 10 days" or "Find a 20% cheaper option" etc.
     Response format:
     Decision: [YES/NO]
     Tip: [Your witty advice]
     Impact: [Brief explanation of financial impact]
+    Confidence: [0.0 to 1.0]
+    Alternatives: [List of alternatives if unaffordable, e.g. "Wait 10 days", "Find a 20% cheaper alternative"]
     `;
 
     try {
       const response = await this.generateContent(prompt);
+      console.log('Affordability response:', response);
       return this.parseAffordabilityResponse(response);
     } catch (error) {
       console.error('Affordability analysis error:', error);
@@ -93,7 +94,8 @@ class GeminiAIService {
       const decisionLine = lines.find(line => line.startsWith('Decision:'));
       const tipLine = lines.find(line => line.startsWith('Tip:'));
       const impactLine = lines.find(line => line.startsWith('Impact:'));
-      
+      const alternativesLine = lines.find(line => line.startsWith('Alternatives:'));
+      const confidenceLine = lines.find(line => line.startsWith('Confidence:'));
       const decision = decisionLine ? decisionLine.replace('Decision:', '').trim().startsWith('YES') : false;
       const tip = tipLine ? tipLine.replace('Tip:', '').trim() : '';
       const impact = impactLine ? impactLine.replace('Impact:', '').trim() : '';
@@ -102,8 +104,8 @@ class GeminiAIService {
         decision,
         tip,
         impact,
-        confidence: 0.85, // Default confidence
-        alternatives: ["Wait 10 days", "Find a 20% cheaper alternative"]
+        confidence:confidenceLine ? parseFloat(confidenceLine.replace('Confidence: ','').trim()) : 0.6, // Default confidence
+        alternatives: alternativesLine ? alternativesLine.replace('Alternatives:', '').trim().split(',').map(a => a.trim()) : []
       };
     } catch (error) {
       console.error('Error parsing affordability response:', error);
@@ -389,51 +391,27 @@ class GeminiAIService {
    * @param {Object} savingsData - The savings optimization request data
    * @returns {Promise<Object>} - The savings optimization analysis
    */
-  async optimizeSavings(savingsData) {
-    const { 
-      currentRoundUps, 
-      spendingPatterns, 
-      savingsGoals, 
-      roundUpSettings 
-    } = savingsData;
-
+  async optimizeSavings(amount) {
+    
     const prompt = `
     You are a savings optimization expert. Help this user maximize their round-up savings potential.
 
-    Current Savings Performance:
-    - Daily round-ups: ₹${currentRoundUps.dailyAverage}
-    - Monthly total: ₹${currentRoundUps.monthlyTotal}
-    - Yearly projection: ₹${currentRoundUps.yearProjection}
-
-    Purchase Patterns:
-    - Small purchases (under ₹100): ${spendingPatterns.smallPurchases}/month
-    - Medium purchases (₹100-500): ${spendingPatterns.mediumPurchases}/month  
-    - Large purchases (above ₹500): ${spendingPatterns.largePurchases}/month
-
-    Savings Goals:
-    ${Object.entries(savingsGoals).map(([goal, data]) => 
-      `${goal}: ₹${data.current}/₹${data.target} by ${data.deadline}`
-    ).join('\n')}
-
-    Current Setting: ${roundUpSettings.current}
-
-    Tasks:
-    1. Calculate potential savings with different round-up strategies
-    2. Recommend optimal round-up setting for their goals
-    3. Suggest "savings challenges" to boost round-ups
-    4. Calculate goal achievement timeline with optimized settings
-
-    Format:
-    Optimization Potential: [How much more they could save annually]
-    Recommended Setting: [Best round-up strategy with reasoning]
-    Savings Challenge: [Weekly challenge to increase round-ups]
-    Goal Timeline: [When they'll reach their goals with optimization]
-    Micro-Investment Tip: [How to maximize the accumulated savings]
+   Given a monetary amount in rupees, round it up to the nearest 10 or 20 such that the rounded amount ends in 9. 
+   The difference between the original amount and the rounded amount will represent a micro-investment.
+   For example, ₹482 becomes ₹489, ₹1159 becomes ₹1173. 
+   Ensure the rounded amount always higher than the original amount.
+    User's Current amount: ₹${amount}
+    Response format in number only strict mode:
+    Rounded amount in rupees
     `;
 
     try {
       const response = await this.generateContent(prompt);
-      return this.parseSavingsResponse(response);
+      console.log('Savings optimization response:', response);
+      const roundedAmountValue = response ? parseFloat(response) : null;
+      console.log('Savings optimization response:', roundedAmountValue);
+      
+      return roundedAmountValue;
     } catch (error) {
       console.error('Savings optimization error:', error);
       return this.getFallbackSavingsResponse(savingsData);

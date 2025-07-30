@@ -73,7 +73,7 @@ exports.processVoiceCommand = async (req, res) => {
     
     const user = req.user
     let ramount = amount;
-     if (user.roundUpEnabled) {
+     if (user.roundUpEnabled && type === 'expense') {
       ramount = await geminiService.optimizeSavings(amount);
      }
     // Save transaction normally
@@ -90,7 +90,7 @@ exports.processVoiceCommand = async (req, res) => {
     });
 
     await transaction.save();
-    if (user.roundUpEnabled) {
+    if (user.roundUpEnabled && type === 'expense') {
       const roundUp = new RoundUp({
         user: req.user.id,
         transaction: transaction._id,

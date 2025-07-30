@@ -1,0 +1,15 @@
+@tailwind base;
+
+@layer base {
+  body {
+    @apply bg-bgLight text-textMain;
+  }
+
+  .dark body {
+    @apply bg-gray-900 text-white;
+  }
+
+  .dark .card {
+    @apply bg-gray-800;
+  }
+}
